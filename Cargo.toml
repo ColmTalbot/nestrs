@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 rand = "*"
-statrs = { path = "../statrs" }
+statrs = { git = "https://github.com/ColmTalbot/statrs.git", branch = "simpler-sampling" }
 logsumexp = "*"
 lnexp = "*"
 rayon = "*"
