@@ -8,8 +8,8 @@ use nestrs::{
     nest::{NestedSampler, ThreadedNestedSampler},
     propose, Result,
 };
+use nestrs::{NestRng, SeedableRng};
 use rand::prelude::Distribution;
-use rand::rngs::ThreadRng;
 use statrs::distribution::{ContinuousCDF, Normal, Uniform};
 
 #[derive(Clone)]
@@ -52,7 +52,7 @@ fn sine_gaussian(x: &[f64], len: usize) -> Vec<f64> {
 }
 
 fn main() {
-    let rng = &mut ThreadRng::default();
+    let rng = &mut NestRng::seed_from_u64(1234);
 
     let truth = vec![50.0, 10.0, 0.6, 0.5, 1.0];
 
@@ -60,7 +60,7 @@ fn main() {
 
     let noise: Vec<f64> = Normal::new(0.0, 0.1)
         .unwrap()
-        .sample_iter(rng.clone())
+        .sample_iter(&mut *rng)
         .take(datalen)
         .collect();
     let data = sine_gaussian(&truth, datalen);
@@ -86,8 +86,8 @@ fn main() {
         Box::new(acceptance::MetropolisHastings::new()),
         "normal",
     );
-    mcmc.sample(100, 100, &mut rng.clone(), propose::uniform_step);
-    let result = mcmc.sample(1000, 100, &mut rng.clone(), propose::differential_step);
+    mcmc.sample(100, 100, rng, propose::uniform_step);
+    let result = mcmc.sample(1000, 100, rng, propose::differential_step);
     result.print_summary();
 
     let mut nest = NestedSampler::new(
@@ -99,6 +99,6 @@ fn main() {
         "normal",
         true,
     );
-    let result = nest.sample(0.1, rng, 5);
+    let result = nest.sample(0.1, 20);
     result.print_summary();
 }

@@ -8,8 +8,8 @@ use nestrs::{
     nest::{NestedSampler, ThreadedNestedSampler},
     propose,
 };
+use nestrs::{NestRng, SeedableRng};
 use rand::prelude::Distribution;
-use rand::rngs::ThreadRng;
 use statrs::distribution::{ContinuousCDF, Normal, Uniform};
 
 #[derive(Clone)]
@@ -38,19 +38,20 @@ impl Likelihood for NormalLikelihood {
 
 fn main() {
     let ndim: usize = 10;
-    let rng = &mut ThreadRng::default();
+    let rng = &mut NestRng::seed_from_u64(1234);
 
     let base = Uniform::new(0.0, 1.0).unwrap();
 
-    let means = base.sample_iter(rng.clone()).take(ndim);
-    let stds = base.sample_iter(rng.clone()).take(ndim);
+    let means: Vec<f64> = base.sample_iter(&mut *rng).take(ndim).collect();
+    let stds: Vec<f64> = base.sample_iter(&mut *rng).take(ndim).collect();
 
     let data: Vec<Vec<f64>> = means
+        .into_iter()
         .zip(stds)
         .map(|(mean, std)| {
             Normal::new(mean, std)
                 .unwrap()
-                .sample_iter(rng.clone())
+                .sample_iter(&mut *rng)
                 .take(10000)
                 .collect()
         })
@@ -73,11 +74,11 @@ fn main() {
         Box::new(acceptance::MetropolisHastings::new()),
         "normal",
     );
-    mcmc.sample(100, 100, &mut rng.clone(), propose::uniform_step);
-    let result = mcmc.sample(1000, 100, &mut rng.clone(), propose::differential_step);
+    mcmc.sample(100, 100, rng, propose::uniform_step);
+    let result = mcmc.sample(1000, 100, rng, propose::differential_step);
     result.print_summary();
 
     let mut nest = NestedSampler::new(likelihood, prior, 500, 1000, 40, "normal", true);
-    let result = nest.sample(0.1, rng, 4);
+    let result = nest.sample(0.1, 4);
     result.print_summary()
 }
