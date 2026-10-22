@@ -1,12 +1,12 @@
 [package]
 name = "nestrs"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 
 [dependencies]
-rand = "*"
-statrs = { git = "https://github.com/ColmTalbot/statrs.git", branch = "simpler-sampling" }
-logsumexp = "*"
-lnexp = "*"
-rayon = "*"
-rand_chacha = "*"
+rand = "0.8.5"
+rand_chacha = "0.3.1"
+statrs = { git = "https://github.com/ColmTalbot/statrs.git", rev = "7e85082a314304fe5e82598e04afad72bee7be28" }
+logsumexp = "0.1.0"
+lnexp = "0.2.1"
+rayon = "1.10"

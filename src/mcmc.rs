@@ -3,14 +3,13 @@ use std::sync::Arc;
 use std::time::Instant;
 use std::vec;
 
-use rand::rngs::ThreadRng;
-use statrs::distribution::{ContinuousCDF, FullContinuous};
+use statrs::distribution::ContinuousCDF;
 
 use crate::likelihood::Likelihood;
-use crate::SamplerResult;
+use crate::{NestRng, SamplerResult};
 
 use super::acceptance::Acceptance;
-use super::{_get_sample_space, point::Point};
+use super::{point::Point, SampleSpace};
 
 #[allow(clippy::upper_case_acronyms)]
 pub struct MCMC {
@@ -20,7 +19,7 @@ pub struct MCMC {
     acceptance: Box<dyn Acceptance>,
     pub accepted: usize,
     pub rejected: usize,
-    sample_space: Arc<Box<dyn FullContinuous<f64, f64> + Send + Sync>>,
+    space: SampleSpace,
 }
 
 impl MCMC {
@@ -30,6 +29,21 @@ impl MCMC {
         acceptance: Box<dyn Acceptance>,
         sample_space: &str,
     ) -> Self {
+        Self::with_space(
+            likelihood,
+            prior,
+            acceptance,
+            SampleSpace::new(sample_space, Vec::new()),
+        )
+    }
+
+    /// A chain exploring `space`, which may have periodic dimensions.
+    pub fn with_space(
+        likelihood: Arc<dyn Likelihood>,
+        prior: Arc<Vec<Box<dyn ContinuousCDF<f64, f64> + Send + Sync>>>,
+        acceptance: Box<dyn Acceptance>,
+        space: SampleSpace,
+    ) -> Self {
         Self {
             likelihood,
             prior,
@@ -37,17 +51,20 @@ impl MCMC {
             acceptance,
             accepted: 0,
             rejected: 0,
-            sample_space: _get_sample_space(&sample_space.to_lowercase()),
+            space,
         }
+    }
+
+    /// The space the chain explores.
+    pub fn space(&self) -> &SampleSpace {
+        &self.space
     }
 
     pub fn rescale(&self, x: &[f64]) -> Vec<f64> {
         x.iter()
             .zip(self.prior.iter())
-            .map(|(&x, prior)| {
-                let unit = self.sample_space.cdf(x);
-                prior.inverse_cdf(unit)
-            })
+            .enumerate()
+            .map(|(i, (&x, prior))| prior.inverse_cdf(self.space.to_unit(i, x)))
             .collect()
     }
 
@@ -55,8 +72,8 @@ impl MCMC {
         &mut self,
         n: usize,
         thin: usize,
-        rng: &mut ThreadRng,
-        propose: fn(&mut MCMC, &Point, &mut ThreadRng) -> Point,
+        rng: &mut NestRng,
+        propose: fn(&mut MCMC, &Point, &mut NestRng) -> Point,
     ) -> SamplerResult {
         let start = Instant::now();
         let mut point: Point;
@@ -74,25 +91,27 @@ impl MCMC {
         }
         for _ in 0..n {
             for _ in 0..thin {
-                point = self.step(&point, &mut rng.clone(), propose);
+                point = self.step(&point, rng, propose);
             }
             self.samples.push(point.clone());
         }
         SamplerResult {
             posterior: self.samples.iter().map(|point| point.x.clone()).collect(),
             ln_evidence: NAN,
+            ln_evidence_error: NAN,
             duration: start.elapsed(),
+            ..Default::default()
         }
     }
 
     fn step(
         &mut self,
         point: &Point,
-        rng: &mut ThreadRng,
-        propose: fn(&mut MCMC, &Point, &mut ThreadRng) -> Point,
+        rng: &mut NestRng,
+        propose: fn(&mut MCMC, &Point, &mut NestRng) -> Point,
     ) -> Point {
-        let proposed = propose(self, point, &mut rng.clone());
-        if self.acceptance.acceptance(point, &proposed) {
+        let proposed = propose(self, point, rng);
+        if self.acceptance.acceptance(point, &proposed, rng) {
             self.accepted += 1;
             proposed
         } else {
@@ -119,6 +138,6 @@ impl MCMC {
     }
 
     pub fn ln_prior(&self, x: &[f64]) -> f64 {
-        x.iter().map(|&x| self.sample_space.ln_pdf(x)).sum()
+        self.space.ln_prior(x)
     }
 }

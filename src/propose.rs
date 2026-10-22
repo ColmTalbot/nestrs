@@ -1,8 +1,11 @@
-use rand::{rngs::ThreadRng, Rng};
+use rand::Rng;
 
 use super::{mcmc::MCMC, point::Point};
+use crate::NestRng;
 
-fn validate_proposal(mcmc: &MCMC, point: &Point, x_prime: &Vec<f64>) -> Point {
+fn validate_proposal(mcmc: &MCMC, point: &Point, x_prime: &[f64]) -> Point {
+    let mut x_prime = x_prime.to_vec();
+    mcmc.space().wrap(&mut x_prime);
     let ln_prior = mcmc.ln_prior(&x_prime);
     if ln_prior == -f64::INFINITY {
         point.clone()
@@ -18,7 +21,7 @@ fn validate_proposal(mcmc: &MCMC, point: &Point, x_prime: &Vec<f64>) -> Point {
 }
 
 #[allow(dead_code)]
-pub fn uniform_step(mcmc: &mut MCMC, point: &Point, rng: &mut ThreadRng) -> Point {
+pub fn uniform_step(mcmc: &mut MCMC, point: &Point, rng: &mut NestRng) -> Point {
     let x_prime: Vec<f64> = point
         .x
         .iter()
@@ -28,7 +31,7 @@ pub fn uniform_step(mcmc: &mut MCMC, point: &Point, rng: &mut ThreadRng) -> Poin
 }
 
 #[allow(dead_code)]
-pub fn differential_step(mcmc: &mut MCMC, point: &Point, rng: &mut ThreadRng) -> Point {
+pub fn differential_step(mcmc: &mut MCMC, point: &Point, rng: &mut NestRng) -> Point {
     let first = rng.gen_range(0..mcmc.samples.len());
     let second = rng.gen_range(0..mcmc.samples.len());
     let scale: f64 = 1.0 / (2.38 * point.x.len() as f64).sqrt();

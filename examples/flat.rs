@@ -8,12 +8,12 @@ use nestrs::{
     propose::{differential_step, uniform_step},
     Result,
 };
-use rand::rngs;
+use nestrs::{NestRng, SeedableRng};
 use statrs::distribution::{ContinuousCDF, Uniform};
 
 fn main() {
     let ndim = 2;
-    let rng = &mut rngs::ThreadRng::default();
+    let rng = &mut NestRng::seed_from_u64(1234);
 
     let prior = Arc::new(
         (0..ndim)
@@ -30,8 +30,8 @@ fn main() {
         Box::new(MetropolisHastings::new()),
         "uniform",
     );
-    mcmc.sample(100, 100, &mut rng.clone(), uniform_step);
-    let result = mcmc.sample(10000, 200, &mut rng.clone(), differential_step);
+    mcmc.sample(100, 100, rng, uniform_step);
+    let result = mcmc.sample(10000, 200, rng, differential_step);
     result.print_summary();
 
     let mut nest = NestedSampler::new(
@@ -43,6 +43,6 @@ fn main() {
         "normal",
         false,
     );
-    let result = nest.sample_serial(0.1, rng);
+    let result = nest.sample_serial(0.1);
     result.print_summary();
 }
